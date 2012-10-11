@@ -61,7 +61,7 @@ namespace LocalisedSoundSources
             {
                 this.azimuth = value;
                 this.itd = GetItd(this.ITDfactor, this.azimuth);
-                Console.WriteLine("ITD: {0}", this.itd);
+                //Console.WriteLine("ITD: {0}", this.itd);
             }
         }
 
@@ -85,14 +85,37 @@ namespace LocalisedSoundSources
 
 #endregion
 
+        private float[] previousValues = new float[2] { 0f, 0f };
+        private float[] amplitudes = new float[2] { 0f, 0f };
+        private float[] frequencies = new float[2] { 100f, 100f };
+
+        private void UpdateAtZero(float[] prev, float[] current)
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                if (((prev[i] <= 0) && (current[i] > 0)) || ((prev[i] >= 0) & (current[i] < 0)) || (current[i] == 0))
+                {
+                    //Console.WriteLine("Channel {0} updated", i);
+                    amplitudes[i] = this.Amplitude;
+                    frequencies[i] = this.Frequency;
+                }
+            }
+        }
+
         public override int Read(float[] buffer, int offset, int sampleCount)
         {
             int sampleRate = WaveFormat.SampleRate;
             float adjust = this.itd * sampleRate;
-            for (int n = 0; n < sampleCount; n = n + this.WaveFormat.Channels)
+            float[] values = new float[2];
+            for (int n = 0; n < sampleCount; n += this.WaveFormat.Channels)
             {
-                buffer[n + offset] = (float)(Amplitude * Math.Sin((2 * Math.PI * sample * Frequency) / sampleRate));
-                buffer[n + offset + 1] = (float)(Amplitude * Math.Sin((2 * Math.PI * (sample-adjust) * Frequency) / sampleRate));
+                // first work out if we'd cross the 0 line and update values if we do
+                values[0] = (float)(amplitudes[0] * Math.Sin((2 * Math.PI * sample * frequencies[0]) / sampleRate));
+                values[1] = (float)(amplitudes[1] * Math.Sin((2 * Math.PI * (sample-adjust) * frequencies[1]) / sampleRate));
+                this.UpdateAtZero(this.previousValues, values);
+                buffer[n + offset] = values[0];
+                buffer[n + offset + 1] = values[1];
+                this.previousValues = values;
                 sample++;
                 if (sample >= sampleRate) sample = 0;
             }
